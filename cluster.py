@@ -86,10 +86,10 @@ def analyze_clusters(cluster_labels, documents, metadatas, top_words=5):
         
         vectorizer = TfidfVectorizer(max_features=100, stop_words='english')
         try:
-            tfidf_matrix = vectorizer.fit_transform(cluster_docs)
+            tfidf_matrix = vectorizer.fit_transform(cluster_docs).toarray()  # type: ignore[attr-defined]
             feature_names = vectorizer.get_feature_names_out()
             
-            mean_tfidf = np.mean(tfidf_matrix.toarray(), axis=0)
+            mean_tfidf = np.mean(tfidf_matrix, axis=0)
             top_indices = np.argsort(mean_tfidf)[::-1][:top_words]
             top_keywords = [feature_names[i] for i in top_indices]
             
