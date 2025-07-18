@@ -9,7 +9,9 @@ from extractTW import load_tweets
 
 def initialize_chroma(collection_name="tweets", provider="default", openai_key=None):
     client = chromadb.PersistentClient(path="./chroma.db")
+    flag = False
     if provider == "openai":
+        flag = True
         embedding_fn = OpenAIEmbeddingFunction(
             api_key=openai_key,
             model_name="text-embedding-3-small"
@@ -26,11 +28,10 @@ def initialize_chroma(collection_name="tweets", provider="default", openai_key=N
         )
         print(f"Using new collection {collection_name}")
     
-    return client, collection
+    return client, collection, flag
 
 def process_tweets_for_embedding(tweets_json: str):
-    with open(tweets_json, "r") as f:
-        tweets = json.load(f)
+    tweets = load_tweets(tweets_json)
     
     documents = []
     metadata = []
