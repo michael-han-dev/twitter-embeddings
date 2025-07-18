@@ -28,6 +28,12 @@ def clean(txt: str) -> str:
     txt = txt.replace("#", "")
     return txt.strip()
 
+def load_tweets(file= 'tweets.json'):
+    try:
+        with open(file, 'r', encoding='utf-8') as f:
+            json.load(f)
+    except FileNotFoundError:
+        return []
 
 async def main():
     cookies = f"auth_token={auth_token}; ct0={ct0}"
