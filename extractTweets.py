@@ -7,6 +7,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 from datetime import datetime
+import random
 import json
 import time
 
@@ -23,8 +24,6 @@ def load_cookies(driver, cookies_path):
 
 def scroll_user_tweets(username: str, scroll_count: int=5, headless: bool=True):
     options = Options()
-    # if headless:
-    #     options.add_argument("--headless")
     driver = webdriver.Chrome(options=options)
 
     driver.get("https://x.com/")
@@ -41,13 +40,18 @@ def scroll_user_tweets(username: str, scroll_count: int=5, headless: bool=True):
     scrolls = 0
     for i in range(scroll_count):
         prev_count = len(articles)
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        r = random.randint(0,18)
+        if i % 3 == 0:
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        else:
+            scroll_distance = random.randint(800, 1700)
+            driver.execute_script(f"window.scrollBy(0, {scroll_distance});")
         print(f'scroll count = {i + 1}')
         try:
             WebDriverWait(driver, 10).until(
                 lambda d: len(d.find_elements(By.CSS_SELECTOR, "article")) > prev_count
             )
-            time.sleep(2)
+            time.sleep(random.uniform(2.5, 6))
             scrolls += 1
         except TimeoutException:
             print("No new tweets loaded. Ending scroll early.")
@@ -58,7 +62,16 @@ def scroll_user_tweets(username: str, scroll_count: int=5, headless: bool=True):
 
 
 if __name__ == "__main__":
-    driver = scroll_user_tweets("michaelyhan_", scroll_count=5)
+    username="michaelyhan_"
+    driver = scroll_user_tweets(username , scroll_count=10)
     articles = driver.find_elements(By.CSS_SELECTOR, "article")
     print(f"Loaded {len(articles)} tweets.")
+    for a in articles:
+        print("---")
+        print(a.text)
+
+    # Filter real tweets
+    tweets = [a for a in articles if username in a.text]
+    print(f"Real tweets: {len(tweets)}")
+    print(f"Total articles detected: {len(articles)}")
     driver.quit()
