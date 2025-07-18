@@ -34,25 +34,28 @@ def load_tweets(file= 'tweets.json'):
             json.load(f)
     except FileNotFoundError:
         return []
+async def fetch_user_tweets(api: API, username: str, limit: int=500) -> list[dict]:
+    user = await api.user_by_login(username)
+    seen = set()
+    tweet_data = []
+
+    async for t in api.user_tweets(user.id, limit):
+        if t.id in seen:
+            continue
+        seen.add(t.id)
+
+        tweet_data.append({
+            "id": t.id,
+            "text": clean(t.rawContent),
+            "created_at": t.date.isoformat()
+        })
+    return tweet_data
 
 async def main():
     cookies = f"auth_token={auth_token}; ct0={ct0}"
     api = await setup_twscrape(cookies)
-    user = await api.user_by_login("michaelyhan_")
 
-    print(f"Scraping tweets for @{user.username} ({user.id})")
-
-    tweets_gen = api.user_tweets(user.id, limit=300)
-    tweets = [t async for t in tweets_gen]
-    tweet_data=[
-        {
-            "id":t.id,
-            "text": clean(t.rawContent),
-            "created_at": t.date.isoformat(),
-            "username": t.user.username
-        }
-        for t in tweets
-    ]
+    tweet_data = await fetch_user_tweets(api, "michaelyhan_", limit=500)
 
     with open("tweets.json", "w") as f:
         json.dump(tweet_data, f, indent=2)

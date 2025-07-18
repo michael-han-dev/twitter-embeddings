@@ -17,3 +17,5 @@ def initialize_chroma(collection_name="tweets"):
     
     return client, collection
 
+def process_tweets_for_embedding(tweets_json: str):
+    
