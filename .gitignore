@@ -4,3 +4,5 @@ env
 x_cookies.jsonx_cookies.json
 x_cookies.json
 accounts.db
+tweets.json
+chroma.db
