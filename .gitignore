@@ -7,3 +7,5 @@ accounts.db
 tweets.json
 chroma.dbaccounts.db
 accounts.dbaccounts.db
+__pycache__/
+chroma.db/

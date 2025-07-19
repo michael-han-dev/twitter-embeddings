@@ -32,7 +32,7 @@ def clean(txt: str) -> str:
 def load_tweets(file= 'tweets.json'):
     try:
         with open(file, 'r', encoding='utf-8') as f:
-            json.load(f)
+            return json.load(f)
     except FileNotFoundError:
         return []
 async def fetch_user_tweets(api: API, username: str, limit: int=500) -> list[dict]:

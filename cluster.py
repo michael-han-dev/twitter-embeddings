@@ -5,6 +5,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer as TFIDF
 from sklearn.decomposition import LatentDirichletAllocation as LDA
 from sklearn.feature_selection import chi2
+from embedTweets import (initialize_chroma, process_tweets_for_embedding, embed_tweets)
 
 import chromadb
 
@@ -61,7 +62,7 @@ def analyze_cluster(docs, labels):
         transformed = vectorizer.fit_transform(cluster_docs)
 
         #cTD-IDF (cluster-level analysis)
-        class_matrix = transformed.sum(axis=0).toarray()
+        class_matrix = np.asarray(transformed.sum(axis=0))
         tfidf = TFIDF(norm=None).fit_transform(class_matrix)
 
         #chi score for significance compared to other clusters
@@ -72,8 +73,39 @@ def analyze_cluster(docs, labels):
         scores = weighted_scores.toarray().flatten()
         top_indices = np.argsort(scores)[::1][:5]
         top_keywords = [feature_names[i] for i in top_indices]
-        
+        print(f"Cluster {label} ({len(cluster_docs)} docs): {top_keywords}")
 
 if __name__ == "__main__":
-    docs, coords, labels = cluster()
+    # Provider selection
+    print("Select embedding provider:")
+    print("1. Local model (sentence-transformers)")
+    print("2. OpenAI API")
+    
+    while True:
+        choice = input("Enter choice (1 or 2): ").strip()
+        if choice == "1":
+            provider = "local"
+            openai_key = None
+            break
+        elif choice == "2":
+            provider = "openai"
+            openai_key = input("Enter OpenAI API key: ").strip()
+            break
+        else:
+            print("Invalid choice. Please enter 1 or 2.")
+
+    while True:
+        username = input("Enter username for user to be checked: ")
+        if not username:
+            continue
+        break
+    # Embed tweets
+    print("Embedding tweets...")
+    client, collection = initialize_chroma("tweets")
+    docs, metadata, ids = process_tweets_for_embedding("tweets.json")
+    embed_tweets(collection, docs, metadata, ids, provider=provider, openai_key=openai_key)
+    
+    # Cluster and analyze
+    print("Clustering...")
+    docs, coords, labels = cluster(username=username)
     analyze_cluster(docs, labels)
