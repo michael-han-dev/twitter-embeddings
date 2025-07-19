@@ -46,4 +46,7 @@ def process_tweets_for_embedding(tweets_json: str):
         ids.append(str(t["id"]))
     return documents, metadata, ids
 
+def embed_tweets(collection, documents, metadata, ids):
+    collection.upsert(documents=documents, metadatas=metadata, ids=ids)
+
 
