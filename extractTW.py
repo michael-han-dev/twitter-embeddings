@@ -8,6 +8,7 @@ load_dotenv()
 auth_token = os.getenv("TWITTER_AUTH_TOKEN")
 ct0 = os.getenv("TWITTER_CT0")
 
+#create an account to scrape with
 async def setup_twscrape(cookies: str, db_path: str= "accounts.db") -> API:
     set_log_level("INFO")
     api = API(db_path)
@@ -35,15 +36,18 @@ def load_tweets(file= 'tweets.json'):
     except FileNotFoundError:
         return []
 async def fetch_user_tweets(api: API, username: str, limit: int=500) -> list[dict]:
+    #remove duplicate tweets scraped and scrape given username
     user = await api.user_by_login(username)
     seen = set()
     tweet_data = []
 
+    #scrape only user's tweets and not replies
     async for t in api.user_tweets(user.id, limit):
         if t.id in seen:
             continue
         seen.add(t.id)
 
+        #choose the tweet data to save, username in case user wants to compare more than 1 person's tweets for filtering later
         tweet_data.append({
             "id": t.id,
             "text": clean(t.rawContent),
