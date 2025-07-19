@@ -7,18 +7,8 @@ from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
 from llvmlite.ir import Value
 from extractTW import load_tweets
 
-def initialize_chroma(collection_name="tweets", provider="default", openai_key=None):
+def initialize_chroma(collection_name="tweets"):
     client = chromadb.PersistentClient(path="./chroma.db")
-    #set flag for using openai embedding or default embedding from sentence_transformer
-    flag = False
-    if provider == "openai":
-        flag = True
-        embedding_fn = OpenAIEmbeddingFunction(
-            api_key=openai_key,
-            model_name="text-embedding-3-small"
-        )
-    else:
-        embedding_fn = None
     
     try:
         collection = client.get_collection(name=collection_name)
@@ -29,7 +19,7 @@ def initialize_chroma(collection_name="tweets", provider="default", openai_key=N
         )
         print(f"Using new collection {collection_name}")
     
-    return client, collection, flag
+    return client, collection
 
 def process_tweets_for_embedding(tweets_json: str):
     tweets = load_tweets(tweets_json)
@@ -49,7 +39,17 @@ def process_tweets_for_embedding(tweets_json: str):
     return documents, metadata, ids
 
 #embed the tweets using upsert in case new embedding function is used
-def embed_tweets(collection, documents, metadata, ids):
-    collection.upsert(documents=documents, metadatas=metadata, ids=ids)
+def embed_tweets(collection, documents, metadata, ids, provider="local", openai_key=None):
+    #set flag for using openai embedding or default embedding from sentence_transformer
+    if provider == "openai":
+        embedding_fn = OpenAIEmbeddingFunction(
+            api_key=openai_key,
+            model_name="text-embedding-3-small"
+        )
+        embeddings = embedding_fn(documents)
+    else:
+        embedding_fn = SentenceTransformer("all-mpnet-base-v2")
+        embeddings = embedding_fn.encode(documents, show_progress_bar=True)
+    collection.upsert(documents=documents, embeddings=embeddings, metadatas=metadata, ids=ids)
 
 
