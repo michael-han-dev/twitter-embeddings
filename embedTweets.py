@@ -42,7 +42,7 @@ def process_tweets_for_embedding(tweets_json: str):
         if not cleaned:
             continue
         documents.append(cleaned)
-        metadata.append({"created_at":t["created_at"]})
+        metadata.append({"created_at":t["created_at"], "username":t["username"]})
         ids.append(str(t["id"]))
     return documents, metadata, ids
 

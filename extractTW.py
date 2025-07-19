@@ -47,7 +47,8 @@ async def fetch_user_tweets(api: API, username: str, limit: int=500) -> list[dic
         tweet_data.append({
             "id": t.id,
             "text": clean(t.rawContent),
-            "created_at": t.date.isoformat()
+            "created_at": t.date.isoformat(),
+            "username": user.username
         })
     return tweet_data
 
@@ -55,7 +56,7 @@ async def main():
     cookies = f"auth_token={auth_token}; ct0={ct0}"
     api = await setup_twscrape(cookies)
 
-    tweet_data = await fetch_user_tweets(api, "michaelyhan_", limit=500)
+    tweet_data = await fetch_user_tweets(api, "michaelyhan_", limit=1000)
 
     with open("tweets.json", "w") as f:
         json.dump(tweet_data, f, indent=2)
