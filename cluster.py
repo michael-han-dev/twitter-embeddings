@@ -44,7 +44,7 @@ def cluster(collection_name="tweets", username: str | None = None):
         min_cluster_size=min_cluster_size,
         metric="euclidean"
     ).fit_predict(umap_embeddings)
-    return docs, umap_embeddings, labels
+    return docs, umap_embeddings, labels, emb
 def analyze_cluster(docs, labels):
     #iterate over labels != -1 labelled from hdbscan
     unique_labels = np.unique(labels)
@@ -76,8 +76,22 @@ def analyze_cluster(docs, labels):
         top_keywords = [feature_names[i] for i in top_indices]
         print(f"Cluster {label} ({len(cluster_docs)} docs): {top_keywords}")
 
-def cluster_representation(docs, umap_embeddings, labels):
+def cluster_representation(docs, embeddings, labels):
     #get the clusters and calculate centroid tweet, use that as label for the cluster.
+    unique_labels = np.unique(labels)
+    representatives = {}
+    for label in unique_labels:
+        if label == -1:
+            continue
+        index = np.where(labels==label)[0]
+        cluster_embeddings = embeddings[index]
+        centroid = np.mean(cluster_embeddings, axis=0) 
+        distance = np.linalg.norm(cluster_embeddings - centroid, axis=1)
+        closet = index[np.argmin(distance)]
+        representatives[label] = docs[closet]
+        print(f"Cluster {label} ({len(index)} tweets) representative: {docs[closet]}")
+    
+    return representatives
 
 
 if __name__ == "__main__":
@@ -116,5 +130,5 @@ if __name__ == "__main__":
     
     # Cluster and analyze
     print("Clustering...")
-    docs, coords, labels = cluster(username=username)
-    analyze_cluster(docs, labels)
+    docs, coords, labels, emb = cluster(username=username)
+    cluster_representation(docs, emb, labels)
