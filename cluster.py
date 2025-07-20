@@ -7,6 +7,7 @@ from sklearn.decomposition import LatentDirichletAllocation as LDA
 from sklearn.feature_selection import chi2
 from embedTweets import (initialize_chroma, process_tweets_for_embedding, embed_tweets)
 
+
 import chromadb
 
 #initialize chromadb
@@ -16,7 +17,7 @@ def cluster(collection_name="tweets", username: str | None = None):
     collection = client.get_collection(collection_name)
     #filters username tweets to cluster
     where_clause = {"username": username} if username else {}
-
+  
     result = collection.get(
         include=["embeddings", "documents"],
         where=where_clause
@@ -44,7 +45,6 @@ def cluster(collection_name="tweets", username: str | None = None):
         metric="euclidean"
     ).fit_predict(umap_embeddings)
     return docs, umap_embeddings, labels
-
 def analyze_cluster(docs, labels):
     #iterate over labels != -1 labelled from hdbscan
     unique_labels = np.unique(labels)
@@ -56,8 +56,9 @@ def analyze_cluster(docs, labels):
         vectorizer = CountVectorizer(
             ngram_range=(1,2),
             min_df=2,
-            max_df=0.8,
-            max_features=20000
+            max_features=20000,
+            stop_words="english",
+            token_pattern = r"(?u)\b[a-zA-Z]{2,}\b"
         )
         transformed = vectorizer.fit_transform(cluster_docs)
 
@@ -71,9 +72,13 @@ def analyze_cluster(docs, labels):
 
         feature_names = vectorizer.get_feature_names_out()
         scores = weighted_scores.toarray().flatten()
-        top_indices = np.argsort(scores)[::1][:5]
+        top_indices = np.argsort(scores)[::1][:2]
         top_keywords = [feature_names[i] for i in top_indices]
         print(f"Cluster {label} ({len(cluster_docs)} docs): {top_keywords}")
+
+def cluster_representation(docs, umap_embeddings, labels):
+    #get the clusters and calculate centroid tweet, use that as label for the cluster.
+
 
 if __name__ == "__main__":
     # Provider selection
@@ -94,11 +99,15 @@ if __name__ == "__main__":
         else:
             print("Invalid choice. Please enter 1 or 2.")
 
+    with open("tweets.json", "r") as f:
+        tweets = json.load(f)
+        valid_usernames = set(tweet["username"] for tweet in tweets)
     while True:
-        username = input("Enter username for user to be checked: ")
-        if not username:
-            continue
-        break
+        username = input("Enter username to be clustered: ")
+        if username and username in valid_usernames:
+            break
+        print("Not a valid username or user tweets non-existent.")
+
     # Embed tweets
     print("Embedding tweets...")
     client, collection = initialize_chroma("tweets")
