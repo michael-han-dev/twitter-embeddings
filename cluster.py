@@ -1,10 +1,19 @@
 import numpy as np
 import json, os, umap, hdbscan
+from dotenv import load_dotenv
+
+load_dotenv()
+
+import matplotlib
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer as TFIDF
 from sklearn.decomposition import LatentDirichletAllocation as LDA
 from sklearn.feature_selection import chi2
+
 from embedTweets import (initialize_chroma, process_tweets_for_embedding, embed_tweets)
 
 
@@ -47,6 +56,7 @@ def cluster(collection_name="tweets", username: str | None = None):
     return docs, umap_embeddings, labels, emb
 def analyze_cluster(docs, labels):
     #iterate over labels != -1 labelled from hdbscan
+    keywords = {}
     unique_labels = np.unique(labels)
     for label in unique_labels:
         if label == -1:
@@ -70,11 +80,10 @@ def analyze_cluster(docs, labels):
         chi_scores, _ = chi2(transformed, [label] * len(cluster_docs))
         weighted_scores = tfidf.multiply(chi_scores / chi_scores.max())
 
-        feature_names = vectorizer.get_feature_names_out()
         scores = weighted_scores.toarray().flatten()
         top_indices = np.argsort(scores)[::1][:2]
-        top_keywords = [feature_names[i] for i in top_indices]
-        print(f"Cluster {label} ({len(cluster_docs)} docs): {top_keywords}")
+        keywords[label] = ", ".join(vectorizer.get_feature_names_out()[top_indices])
+    return keywords
 
 def cluster_representation(docs, embeddings, labels):
     #get the clusters and calculate centroid tweet, use that as label for the cluster.
@@ -93,6 +102,63 @@ def cluster_representation(docs, embeddings, labels):
     
     return representatives
 
+def plot_clusters(labels, umap_embeddings, representatives, keywords):
+    clustered = labels >= 0
+    cmap = plt.colormaps["Spectral"]
+    max_lab = max(l for l in labels if l != -1)
+
+    fig, ax = plt.subplots()
+    #plot noise grey
+    ax.scatter(
+        umap_embeddings[~clustered, 0],
+        umap_embeddings[~clustered, 1],
+        s=10, alpha=0.5, color="gray", label="Noise"
+    )
+
+    #clusters coloured by label
+    ax.scatter(
+        umap_embeddings[clustered, 0],
+        umap_embeddings[clustered, 1],
+        c=labels[clustered],
+        s=10, cmap="Spectral"
+    )
+
+    annotations = {}
+    for lab in np.unique(labels):
+        if lab == -1:
+            continue
+        pts = umap_embeddings[labels == lab]
+        centroid = pts.mean(0)
+        rep_idx  = np.where(labels == lab)[0][np.argmin(np.linalg.norm(umap_embeddings[labels == lab] - centroid, axis=1))]
+        #place text exactly on that point
+        x, y = umap_embeddings[rep_idx]
+        txt   = representatives[lab][:50] + "…"
+        ann   = ax.text(
+            x, y, txt,
+            fontsize=8, ha="center", va="center",
+            bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.7),
+            color=cmap(lab / max_lab)
+        )
+        annotations[lab] = ann
+
+    ax.legend(loc="best", frameon=False, fontsize="small")
+
+    state = {"show": "rep"}
+
+    def on_key(event):
+        if event.key != "t":
+            return
+        state["show"] = "kw" if state["show"] == "rep" else "rep"
+        for lab, ann in annotations.items():
+            text = (keywords[lab] if state["show"] == "kw" else representatives[lab][:50] + "…")
+            ann.set_text(text)
+        fig.canvas.draw_idle()
+
+    fig.canvas.mpl_connect("key_press_event", on_key)
+
+    ax.set_title("Tweet clusters (UMAP 2-D)")
+    ax.set_xlabel("UMAP-1");  ax.set_ylabel("UMAP-2")
+    plt.tight_layout();  plt.show()
 
 if __name__ == "__main__":
     # Provider selection
@@ -108,7 +174,7 @@ if __name__ == "__main__":
             break
         elif choice == "2":
             provider = "openai"
-            openai_key = input("Enter OpenAI API key: ").strip()
+            openai_key = os.getenv("OPENAI_API_KEY")
             break
         else:
             print("Invalid choice. Please enter 1 or 2.")
@@ -131,4 +197,6 @@ if __name__ == "__main__":
     # Cluster and analyze
     print("Clustering...")
     docs, coords, labels, emb = cluster(username=username)
-    cluster_representation(docs, emb, labels)
+    keywords = analyze_cluster(docs, labels)
+    rep = cluster_representation(docs, emb, labels)
+    plot_clusters(labels, coords, rep, keywords)
