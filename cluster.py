@@ -7,6 +7,8 @@ load_dotenv()
 import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+from mpl_toolkits.mplot3d import Axes3D
 
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer as TFIDF
@@ -20,29 +22,34 @@ import chromadb
 #initialize chromadb
 client = chromadb.PersistentClient(path="./chroma.db")
 
-def cluster(collection_name="tweets", username: str | None = None):
+def cluster_single_user(collection_name="tweets", username: str | None = None):
     collection = client.get_collection(collection_name)
-    #filters username tweets to cluster
-    where_clause = {"username": username} if username else {}
-  
+
     result = collection.get(
-        include=["embeddings", "documents"],
-        where=where_clause
+        include=["embeddings", "documents", "metadatas"]
     )
     
-    #convert list of list to array
+    #convert list of list to array 
     emb = np.array(result["embeddings"])
     docs = result["documents"]
+    metadata = result["metadatas"]
+    
+    if username and metadata and docs:
+        filtered_indices = [i for i, m in enumerate(metadata) if m and m.get("username") == username]
+        emb = emb[filtered_indices]
+        docs = [docs[i] for i in filtered_indices]
+        metadata = [metadata[i] for i in filtered_indices]
 
     #reduce high dimension
     umap_embeddings = umap.UMAP(
-        n_components=2,
+        n_components=3,
         metric="cosine", #used cosine instead of euclidean for directionality and ignores magnitude of tweet
         min_dist=0.0,
         random_state=42
     ).fit_transform(emb)
+    
     while True:
-        val = input("\nMin cluster size (rec 10-15)?: ")
+        val = input(f"\nMin cluster size for {username} (rec 8-12)?: ")
         if val.isdigit() and int(val) > 0:
             min_cluster_size = int(val)
             break
@@ -51,7 +58,94 @@ def cluster(collection_name="tweets", username: str | None = None):
         min_cluster_size=min_cluster_size,
         metric="euclidean"
     ).fit_predict(umap_embeddings)
-    return docs, umap_embeddings, labels, emb
+    return docs, umap_embeddings, labels, emb, metadata
+
+def cluster_multiple_users(usernames: list[str], collection_name="tweets"):
+    collection = client.get_collection(collection_name)
+    
+    result = collection.get(include=["embeddings", "documents", "metadatas"])
+    all_emb = np.array(result["embeddings"])
+    all_docs = result["documents"]
+    all_metadata = result["metadatas"]
+    
+    user_indices = {}
+    user_docs = {}
+    user_metadata = {}
+    user_embeddings = {}
+    
+    for user in usernames:
+        if all_metadata and all_docs:
+            indices = [i for i, m in enumerate(all_metadata) if m and m.get("username") == user]
+            user_indices[user] = indices
+            user_docs[user] = [all_docs[i] for i in indices]
+            user_metadata[user] = [all_metadata[i] for i in indices]
+            user_embeddings[user] = np.array(all_emb[indices])
+    
+    #combine all user embeddings
+    combined_embeddings = []
+    combined_docs = []
+    combined_metadata = []
+    user_slice_map = {}
+    
+    current_idx = 0
+    for user in usernames:
+        start_idx = current_idx
+        user_emb_array = user_embeddings[user]
+        end_idx = start_idx + user_emb_array.shape[0]
+        user_slice_map[user] = (start_idx, end_idx)
+        
+        combined_embeddings.append(user_emb_array)
+        combined_docs.extend(user_docs[user])
+        combined_metadata.extend(user_metadata[user])
+        current_idx = end_idx
+    
+    #run umap on all embeds
+    combined_emb = np.vstack(combined_embeddings)
+    shared_coords = umap.UMAP(
+        n_components=3,
+        metric="cosine",
+        min_dist=0.0,
+        random_state=42
+    ).fit_transform(combined_emb)
+    
+    all_labels = np.full(len(shared_coords), -1) 
+    cluster_offset = 0
+    user_cluster_info = {}
+    
+    for user in usernames:
+        print(f"Clustering {user} in shared space...")
+        start_idx, end_idx = user_slice_map[user]
+        user_coords = shared_coords[start_idx:end_idx]
+        
+        while True:
+            val = input(f"\nMin cluster size for {user} (rec 8-12)?: ")
+            if val.isdigit() and int(val) > 0:
+                min_cluster_size = int(val)
+                break
+        
+        #cluster user's points in shared space
+        user_labels = hdbscan.HDBSCAN(
+            min_cluster_size=min_cluster_size,
+            metric="euclidean"
+        ).fit_predict(user_coords)
+        
+        adjusted_labels = user_labels.copy()
+        adjusted_labels[user_labels >= 0] += cluster_offset
+        all_labels[start_idx:end_idx] = adjusted_labels
+        
+        max_cluster = user_labels.max() if user_labels.max() >= 0 else -1
+        user_cluster_info[user] = {
+            'offset': cluster_offset,
+            'max_cluster': max_cluster,
+            'cluster_count': max_cluster + 1 if max_cluster >= 0 else 0,
+            'slice': (start_idx, end_idx)
+        }
+        
+        if max_cluster >= 0:
+            cluster_offset += max_cluster + 1
+    
+    return combined_docs, shared_coords, all_labels, combined_emb, combined_metadata, user_cluster_info
+
 def analyze_cluster(docs, labels):
     #iterate over labels != -1 labelled from hdbscan
     keywords = {}
@@ -72,7 +166,7 @@ def analyze_cluster(docs, labels):
 
         #cTD-IDF (cluster-level analysis)
         class_matrix = np.asarray(transformed.sum(axis=0))
-        tfidf = TFIDF(norm=None).fit_transform(class_matrix)
+        tfidf = TFIDF().fit_transform(class_matrix)
 
         #chi score for significance compared to other clusters
         chi_scores, _ = chi2(transformed, [label] * len(cluster_docs))
@@ -100,21 +194,45 @@ def cluster_representation(docs, embeddings, labels):
     
     return representatives
 
-def plot_clusters(labels, umap_embeddings, representatives, keywords):
+def plot_clusters_2d(labels, umap_embeddings, representatives, keywords, metadata):
     clustered = labels >= 0
     fig, ax = plt.subplots()
+    usernames = [m["username"] for m in metadata]
+    unique_users = list(set(usernames))
+    user_colours = {unique_users[i]: ["black", "blue", "red", "green", "purple"][i % 5] for i in range(len(unique_users))}
 
-    #plot the noise in greey
-    noise = ax.scatter(
-        umap_embeddings[~clustered, 0],
-        umap_embeddings[~clustered, 1],
-        s=10, alpha=0.5, color="gray", label="Misc Tweets"
-    )
-    ax.scatter(
-        umap_embeddings[clustered, 0],
-        umap_embeddings[clustered, 1],
-        c=labels[clustered], s=10, cmap="Spectral"
-    )
+    legend_handles = []
+    
+    for user in unique_users:
+        user_mask = np.array([u == user for u in usernames])
+
+        #plot the noise in grey
+        if np.any(user_mask & ~clustered):
+            ax.scatter(
+                umap_embeddings[user_mask & ~clustered, 0],
+                umap_embeddings[user_mask & ~clustered, 1],
+                s=10, alpha=0.5, color="gray"
+            )
+        
+        if np.any(user_mask & clustered):
+            ax.scatter(
+                umap_embeddings[user_mask & clustered, 0],
+                umap_embeddings[user_mask & clustered, 1],
+                c=labels[user_mask & clustered],
+                s=10,
+                cmap="Spectral",
+                edgecolors=user_colours[user],
+                linewidth=1.0
+            )
+            
+        #add user to legend with their edge color
+        legend_handles.append(Line2D([0], [0], marker='o', color='w', 
+                                    markerfacecolor='lightgray', markeredgecolor=user_colours[user],
+                                    markersize=8, markeredgewidth=2, label=f"@{user}"))
+
+    if np.any(~clustered):
+        legend_handles.append(Line2D([0], [0], marker='o', color='gray', 
+                                    markersize=6, alpha=0.5, label="Misc Tweets"))
 
     annotations = {}
     for lab in np.unique(labels):
@@ -123,7 +241,7 @@ def plot_clusters(labels, umap_embeddings, representatives, keywords):
         pts = umap_embeddings[labels == lab]
         centroid = pts.mean(0)
         idx = np.where(labels == lab)[0][np.argmin(np.linalg.norm(pts - centroid, axis=1))]
-        x, y = umap_embeddings[idx]
+        x, y = umap_embeddings[idx][:2]
         ann = ax.annotate(
             representatives[lab][:70] + "…",
             (x, y),
@@ -137,7 +255,7 @@ def plot_clusters(labels, umap_embeddings, representatives, keywords):
         )
         annotations[lab] = ann
 
-    ax.legend(handles=[noise], loc="best", frameon=False, fontsize="small")
+    ax.legend(handles=legend_handles, loc="best", frameon=False, fontsize="small")
 
     state = {"rep": True}
 
@@ -157,6 +275,87 @@ def plot_clusters(labels, umap_embeddings, representatives, keywords):
     ax.set_xlabel("'t' to switch between cluster rep tweet or keyword")
     ax.set_ylabel("UMAP-2")
     plt.tight_layout()
+    plt.show()
+
+def plot_clusters_3d(labels, umap_embeddings, representatives, keywords, metadata):
+    clustered = labels >= 0
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    usernames = [m["username"] for m in metadata]
+    unique_users = list(set(usernames))
+    user_colours = {unique_users[i]: ["black", "blue", "red", "green", "purple"][i % 5] for i in range(len(unique_users))}
+
+    legend_handles = []
+    
+    for user in unique_users:
+        user_mask = np.array([u == user for u in usernames])
+
+        #plot the noise in grey
+        if np.any(user_mask & ~clustered):
+            ax.scatter(
+                umap_embeddings[user_mask & ~clustered, 0],
+                umap_embeddings[user_mask & ~clustered, 1],
+                umap_embeddings[user_mask & ~clustered, 2],
+                alpha=0.5, color="gray"
+            )
+        
+        if np.any(user_mask & clustered):
+            ax.scatter(
+                umap_embeddings[user_mask & clustered, 0],
+                umap_embeddings[user_mask & clustered, 1],
+                umap_embeddings[user_mask & clustered, 2],
+                c=labels[user_mask & clustered],
+                cmap="Spectral"
+            )
+        
+        legend_handles.append(Line2D([0], [0], marker='o', color='w', 
+                                    markerfacecolor='lightgray', markeredgecolor=user_colours[user],
+                                    markersize=8, markeredgewidth=2, label=f"@{user}"))
+    
+    if np.any(~clustered):
+        legend_handles.append(Line2D([0], [0], marker='o', color='gray', 
+                                    markersize=6, alpha=0.5, label="Misc Tweets"))
+
+    annotations = {}
+    for lab in np.unique(labels):
+        if lab == -1:
+            continue
+        pts = umap_embeddings[labels == lab]
+        centroid = pts.mean(0)
+        idx = np.where(labels == lab)[0][np.argmin(np.linalg.norm(pts - centroid, axis=1))]
+        x, y, z = umap_embeddings[idx]
+        ann = ax.text(
+            x, y, z,
+            representatives[lab][:70] + "…",
+            ha="center",
+            va="bottom",
+            fontsize=6,
+            bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.7),
+            color="black"
+        )
+        annotations[lab] = ann
+
+    ax.legend(handles=legend_handles, loc="best", frameon=False, fontsize="small")
+
+    state = {"rep": True}
+
+    def on_key(event):
+        if event.key != "t":
+            return
+        state["rep"] = not state["rep"]
+        for lab, ann in annotations.items():
+            ann.set_text(
+                keywords[lab] if not state["rep"] else representatives[lab][:70] + "…"
+            )
+        fig.canvas.draw_idle()
+
+    fig.canvas.mpl_connect("key_press_event", on_key)
+
+    ax.set_title("Tweet clusters (UMAP 3-D)")
+    ax.set_xlabel("'t' to switch between cluster rep tweet or keyword")
+    ax.set_ylabel("UMAP-2")
+    ax.set_zlabel("UMAP-3")
     plt.show()
 
 if __name__ == "__main__":
@@ -181,21 +380,58 @@ if __name__ == "__main__":
     with open("tweets.json", "r") as f:
         tweets = json.load(f)
         valid_usernames = set(tweet["username"] for tweet in tweets)
-    while True:
-        username = input("Enter username to be clustered: ")
-        if username and username in valid_usernames:
-            break
-        print("Not a valid username or user tweets non-existent.")
 
     # Embed tweets
     print("Embedding tweets...")
-    client, collection = initialize_chroma("tweets")
+    collection_name = f"tweets_{provider}"
+    client, collection = initialize_chroma(collection_name)
     docs, metadata, ids = process_tweets_for_embedding("tweets.json")
     embed_tweets(collection, docs, metadata, ids, provider=provider, openai_key=openai_key)
     
+    print("Would you like to analyze:")
+    print("1. One user")  
+    print("2. Two users")
+
+    while True:
+        choice = input("Enter choice (1 or 2): ").strip()
+        if choice == "1":
+            while True:
+                username = input("Enter username to be clustered: ")
+                if username and username in valid_usernames:
+                    usernames = [username]
+                    break
+                print("Not a valid username or user tweets non-existent.")
+            break
+        elif choice == "2":
+            usernames = []
+            for i in range(2):
+                while True:
+                    username = input(f"Enter username {i+1} to be clustered: ")
+                    if username and username in valid_usernames:
+                        usernames.append(username)
+                        break
+                    print("Not a valid username or user tweets non-existent.")
+            break
+        else:
+            print("Invalid choice. Please enter 1 or 2.")
+        
     # Cluster and analyze
     print("Clustering...")
-    docs, coords, labels, emb = cluster(username=username)
+    docs, coords, labels, emb, metadata, user_cluster_info = cluster_multiple_users(usernames, collection_name)
     keywords = analyze_cluster(docs, labels)
     rep = cluster_representation(docs, emb, labels)
-    plot_clusters(labels, coords, rep, keywords)
+    
+    print("Visualize in:")
+    print("1. 2D")
+    print("2. 3D")
+    
+    while True:
+        viz_choice = input("Enter choice (1 or 2): ").strip()
+        if viz_choice == "1":
+            plot_clusters_2d(labels, coords, rep, keywords, metadata)
+            break
+        elif viz_choice == "2":
+            plot_clusters_3d(labels, coords, rep, keywords, metadata)
+            break
+        else:
+            print("Invalid choice. Please enter 1 or 2.")

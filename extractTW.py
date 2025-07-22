@@ -59,13 +59,23 @@ async def fetch_user_tweets(api: API, username: str, limit: int=500) -> list[dic
 async def main():
     cookies = f"auth_token={auth_token}; ct0={ct0}"
     api = await setup_twscrape(cookies)
-
-    tweet_data = await fetch_user_tweets(api, "michaelyhan_", limit=1000)
+    
+    #load existing tweets if they exist
+    existing_tweets = load_tweets()
+    seen_ids = {tweet["id"] for tweet in existing_tweets}
+    
+    #fetch new tweets
+    new_tweets = await fetch_user_tweets(api, "michaelyhan_", limit=1000)
+    
+    for tweet in new_tweets:
+        if tweet["id"] not in seen_ids:
+            existing_tweets.append(tweet)
+            seen_ids.add(tweet["id"])
 
     with open("tweets.json", "w") as f:
-        json.dump(tweet_data, f, indent=2)
+        json.dump(existing_tweets, f, indent=2)
 
-    print(f"Collected {len(tweet_data)} tweets.")
+    print(f"Collected {len(new_tweets)} tweets.")
 
 if __name__ == "__main__":
     asyncio.run(main())
