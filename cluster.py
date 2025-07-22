@@ -101,27 +101,26 @@ def cluster_multiple_users(usernames: list[str], collection_name="tweets"):
     
     #run umap on all embeds
     combined_emb = np.vstack(combined_embeddings)
-    shared_coords = umap.UMAP(
+    shared_coords = np.array(umap.UMAP(
         n_components=3,
         metric="cosine",
         min_dist=0.0,
         random_state=42
-    ).fit_transform(combined_emb)
+    ).fit_transform(combined_emb))
     
-    all_labels = np.full(len(shared_coords), -1) 
+    all_labels = np.full(shared_coords.shape[0], -1) 
     cluster_offset = 0
     user_cluster_info = {}
     
+    while True:
+        val = input(f"\nMin cluster size (rec 8-15)?: ")
+        if val.isdigit() and int(val) > 0:
+            min_cluster_size = int(val)
+            break
+
     for user in usernames:
-        print(f"Clustering {user} in shared space...")
         start_idx, end_idx = user_slice_map[user]
         user_coords = shared_coords[start_idx:end_idx]
-        
-        while True:
-            val = input(f"\nMin cluster size for {user} (rec 8-12)?: ")
-            if val.isdigit() and int(val) > 0:
-                min_cluster_size = int(val)
-                break
         
         #cluster user's points in shared space
         user_labels = hdbscan.HDBSCAN(
@@ -220,7 +219,7 @@ def plot_clusters_2d(labels, umap_embeddings, representatives, keywords, metadat
                 umap_embeddings[user_mask & clustered, 1],
                 c=labels[user_mask & clustered],
                 s=10,
-                cmap="Spectral",
+                cmap="tab10",
                 edgecolors=user_colours[user],
                 linewidth=1.0
             )
@@ -238,10 +237,20 @@ def plot_clusters_2d(labels, umap_embeddings, representatives, keywords, metadat
     for lab in np.unique(labels):
         if lab == -1:
             continue
+        
+        cluster_user = None
+        for user, info in user_cluster_info.items():
+            if info['offset'] <= lab <= info['offset'] + info['max_cluster']:
+                cluster_user = user
+                break
+        
         pts = umap_embeddings[labels == lab]
         centroid = pts.mean(0)
         idx = np.where(labels == lab)[0][np.argmin(np.linalg.norm(pts - centroid, axis=1))]
         x, y = umap_embeddings[idx][:2]
+        
+        box_edge_color = user_colours.get(cluster_user, "black") if cluster_user else "black"
+        
         ann = ax.annotate(
             representatives[lab][:70] + "…",
             (x, y),
@@ -250,7 +259,7 @@ def plot_clusters_2d(labels, umap_embeddings, representatives, keywords, metadat
             ha="center",
             va="bottom",
             fontsize=6,
-            bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.7),
+            bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.7, edgecolor=box_edge_color, linewidth=1.5),
             color="black"
         )
         annotations[lab] = ann
@@ -281,6 +290,9 @@ def plot_clusters_3d(labels, umap_embeddings, representatives, keywords, metadat
     clustered = labels >= 0
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
+    ax.grid(False)
+    ax.set_facecolor('none')
+    ax.set_axis_off()
 
     usernames = [m["username"] for m in metadata]
     unique_users = list(set(usernames))
@@ -306,7 +318,10 @@ def plot_clusters_3d(labels, umap_embeddings, representatives, keywords, metadat
                 umap_embeddings[user_mask & clustered, 1],
                 umap_embeddings[user_mask & clustered, 2],
                 c=labels[user_mask & clustered],
-                cmap="Spectral"
+                s=30,
+                cmap="tab10",
+                edgecolors=user_colours[user],
+                linewidth=1.5
             )
         
         legend_handles.append(Line2D([0], [0], marker='o', color='w', 
@@ -321,17 +336,27 @@ def plot_clusters_3d(labels, umap_embeddings, representatives, keywords, metadat
     for lab in np.unique(labels):
         if lab == -1:
             continue
+        
+        cluster_user = None
+        for user, info in user_cluster_info.items():
+            if info['offset'] <= lab <= info['offset'] + info['max_cluster']:
+                cluster_user = user
+                break
+        
         pts = umap_embeddings[labels == lab]
         centroid = pts.mean(0)
         idx = np.where(labels == lab)[0][np.argmin(np.linalg.norm(pts - centroid, axis=1))]
         x, y, z = umap_embeddings[idx]
+        
+        box_edge_color = user_colours.get(cluster_user, "black") if cluster_user else "black"
+        
         ann = ax.text(
             x, y, z,
             representatives[lab][:70] + "…",
             ha="center",
             va="bottom",
             fontsize=6,
-            bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.7),
+            bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.7, edgecolor=box_edge_color, linewidth=1.5),
             color="black"
         )
         annotations[lab] = ann
