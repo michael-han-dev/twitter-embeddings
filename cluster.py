@@ -268,22 +268,42 @@ def plot_clusters_2d(labels, umap_embeddings, representatives, keywords, metadat
 
     ax.legend(handles=legend_handles, loc="best", frameon=False, fontsize="small")
 
-    state = {"rep": True}
+    state = {"rep": True, "show_all": False}
+    tweet_annotations = []
 
     def on_key(event):
-        if event.key != "t":
-            return
-        state["rep"] = not state["rep"]
-        for lab, ann in annotations.items():
-            ann.set_text(
-                keywords[lab] if not state["rep"] else representatives[lab][:70] + "…"
-            )
+        if event.key == "t":
+            state["rep"] = not state["rep"]
+            for lab, ann in annotations.items():
+                ann.set_text(
+                    keywords[lab] if not state["rep"] else representatives[lab][:70] + "…"
+                )
+        elif event.key == "r":
+            state["show_all"] = not state["show_all"]
+            
+            for ann in tweet_annotations:
+                ann.remove()
+            tweet_annotations.clear()
+            
+            if state["show_all"]:
+                for i, (coord, meta) in enumerate(zip(umap_embeddings, metadata)):
+                    if meta and 'text' in meta:
+                        user = meta['username']
+                        edge_color = user_colours.get(user, "black")
+                        tweet_text = f"@{user}: {meta['text'][:50]}..."
+                        
+                        ann = ax.annotate(tweet_text, (coord[0], coord[1]),
+                                         xytext=(5, 5), textcoords='offset points',
+                                         bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8, edgecolor=edge_color),
+                                         fontsize=5, ha='left')
+                        tweet_annotations.append(ann)
+        
         fig.canvas.draw_idle()
 
     fig.canvas.mpl_connect("key_press_event", on_key)
 
     ax.set_title("Tweet clusters (UMAP 2-D)")
-    ax.set_xlabel("'t' to switch between cluster rep tweet or keyword")
+    ax.set_xlabel("'t' to switch cluster rep/keyword, 'r' to toggle all tweets")
     ax.set_ylabel("UMAP-2")
     plt.tight_layout()
     plt.show()
@@ -365,22 +385,41 @@ def plot_clusters_3d(labels, umap_embeddings, representatives, keywords, metadat
 
     ax.legend(handles=legend_handles, loc="best", frameon=False, fontsize="small")
 
-    state = {"rep": True}
+    state = {"rep": True, "show_all": False}
+    tweet_annotations = []
 
     def on_key(event):
-        if event.key != "t":
-            return
-        state["rep"] = not state["rep"]
-        for lab, ann in annotations.items():
-            ann.set_text(
-                keywords[lab] if not state["rep"] else representatives[lab][:70] + "…"
-            )
+        if event.key == "t":
+            state["rep"] = not state["rep"]
+            for lab, ann in annotations.items():
+                ann.set_text(
+                    keywords[lab] if not state["rep"] else representatives[lab][:70] + "…"
+                )
+        elif event.key == "r":
+            state["show_all"] = not state["show_all"]
+            
+            for ann in tweet_annotations:
+                ann.remove()
+            tweet_annotations.clear()
+            
+            if state["show_all"]:
+                for coord, meta in zip(umap_embeddings, metadata):
+                    if meta and 'text' in meta:
+                        user = meta['username']
+                        edge_color = user_colours.get(user, "black")
+                        tweet_text = f"@{user}: {meta['text'][:50]}..."
+                        
+                        ann = ax.text(coord[0], coord[1], coord[2], tweet_text,
+                                     bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8, edgecolor=edge_color),
+                                     fontsize=5, ha='center')
+                        tweet_annotations.append(ann)
+        
         fig.canvas.draw_idle()
 
     fig.canvas.mpl_connect("key_press_event", on_key)
 
     ax.set_title("Tweet clusters (UMAP 3-D)")
-    ax.set_xlabel("'t' to switch between cluster rep tweet or keyword")
+    ax.set_xlabel("'t' to switch cluster rep/keyword, 'r' to toggle all tweets")
     ax.set_ylabel("UMAP-2")
     ax.set_zlabel("UMAP-3")
     plt.show()
