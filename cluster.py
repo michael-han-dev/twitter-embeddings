@@ -9,12 +9,14 @@ matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.animation as animate
 
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer as TFIDF
 from sklearn.feature_selection import chi2
 
 from embedTweets import (initialize_chroma, process_tweets_for_embedding, embed_tweets)
+from animate import animate_tweets
 
 
 import chromadb
@@ -447,16 +449,24 @@ if __name__ == "__main__":
     rep = cluster_representation(docs, emb, labels)
     
     print("Visualize in:")
-    print("1. 2D")
-    print("2. 3D")
+    print("1. 2D Static")
+    print("2. 3D Static")
+    print("3. 2D Animated Timeline")
+    print("4. 3D Animated Timeline")
     
     while True:
-        viz_choice = input("Enter choice (1 or 2): ").strip()
+        viz_choice = input("Enter choice (1-4): ").strip()
         if viz_choice == "1":
             plot_clusters_2d(labels, coords, rep, keywords, metadata)
             break
         elif viz_choice == "2":
             plot_clusters_3d(labels, coords, rep, keywords, metadata)
             break
+        elif viz_choice == "3":
+            animate_tweets(labels, coords, metadata, mode='2d')
+            break
+        elif viz_choice == "4":
+            animate_tweets(labels, coords, metadata, mode='3d')
+            break
         else:
-            print("Invalid choice. Please enter 1 or 2.")
+            print("Invalid choice. Please enter 1-4.")
