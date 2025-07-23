@@ -22,8 +22,8 @@ def collection_to_query():
 
 def get_num_results():
     num_results = int(input("How many results to retrieve: "))
-    while num_results < 1 or num_results > 100:
-        num_results = int(input("Enter number between 1-100: "))
+    while num_results < 1 or num_results > 20:
+        num_results = int(input("Enter number between 1-20: "))
     return num_results
 
 def get_user_filter():
@@ -47,7 +47,7 @@ def format_results(results):
     for i, (doc, metadata) in enumerate(zip(results['documents'][0], results['metadatas'][0])):
         print(f"{i+1}. @{metadata['username']} ({metadata['created_at'][:10]})")
         print(f"   {doc}")
-        print()
+        print("-----------------")
 
 def main():
     collection_name = collection_to_query()
