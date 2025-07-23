@@ -97,7 +97,7 @@ def animate_tweets(labels, coordinates, metadata, mode, interval=50):
                               linewidth=1.5, alpha=0.8)
                 else:
                     ax.scatter(clustered_coords[:, 0], clustered_coords[:, 1],
-                              c=clustered_labels, s=10, cmap="tab10", edgecolors=edge_color,
+                              c=clustered_labels, s=30, cmap="tab10", edgecolors=edge_color,
                               linewidth=1.0, alpha=0.8)
             
             if user_data[user]['noise']:
@@ -108,7 +108,7 @@ def animate_tweets(labels, coordinates, metadata, mode, interval=50):
                               color="gray", s=20, alpha=0.5, edgecolors=edge_color, linewidth=1.0)
                 else:
                     ax.scatter(noise_coords[:, 0], noise_coords[:, 1],
-                              color="gray", s=8, alpha=0.5, edgecolors=edge_color, linewidth=0.8)
+                              color="gray", s=20, alpha=0.5, edgecolors=edge_color, linewidth=0.8)
         
         start_time = current_tweets[0]['timestamp'].strftime('%Y-%m-%d')
         end_time = current_tweets[-1]['timestamp'].strftime('%Y-%m-%d')

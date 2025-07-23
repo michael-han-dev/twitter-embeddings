@@ -65,7 +65,7 @@ async def main():
     seen_ids = {tweet["id"] for tweet in existing_tweets}
     
     #fetch new tweets
-    new_tweets = await fetch_user_tweets(api, "michaelyhan_", limit=1000)
+    new_tweets = await fetch_user_tweets(api, "adriandlam_", limit=500)
     
     for tweet in new_tweets:
         if tweet["id"] not in seen_ids:

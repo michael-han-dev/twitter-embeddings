@@ -220,7 +220,7 @@ def plot_clusters_2d(labels, umap_embeddings, representatives, keywords, metadat
                 umap_embeddings[user_mask & clustered, 0],
                 umap_embeddings[user_mask & clustered, 1],
                 c=labels[user_mask & clustered],
-                s=10,
+                s=30,
                 cmap="tab10",
                 edgecolors=user_colours[user],
                 linewidth=1.0
@@ -450,9 +450,9 @@ if __name__ == "__main__":
     # Embed tweets
     print("Embedding tweets...")
     collection_name = f"tweets_{provider}"
-    client, collection = initialize_chroma(collection_name)
+    client, collection = initialize_chroma(collection_name, provider=provider, openai_key=openai_key)
     docs, metadata, ids = process_tweets_for_embedding("tweets.json")
-    embed_tweets(collection, docs, metadata, ids, provider=provider, openai_key=openai_key)
+    embed_tweets(collection, docs, metadata, ids)
     
     print("Would you like to analyze:")
     print("1. One user")  
