@@ -4,7 +4,7 @@ Analyze and visualize your Twitter activity using semantic embeddings, clusterin
 
 ## Features
 
-- **Tweet Scraping**: Extract tweets using twscrape
+- **Tweet Scraping**: Extract tweets using [twscrape](https://github.com/vladkens/twscrape)
 - **Semantic Embeddings**: Convert tweets to vectors using local model (all-mpnet-base-v2 via sentence transformers library) or OpenAI (text-embedding-3-small)
 - **Clustering**: Group and visualize similar tweets using UMAP + HDBSCAN
 - **Interactive Visualization**: 2D/3D plots with animation option
@@ -31,7 +31,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 Edit `.env` with your API credentials:
-- **Twitter tokens** (required for scraping)
+- **Twitter/X tokens** (required for scraping)
 - **OpenAI API key** (optional, for better embeddings)
 
 ### 4. Run the Pipeline
@@ -83,32 +83,6 @@ python search.py
 1. Get API key from OpenAI
 2. Add `OPENAI_API_KEY` to `.env`
 3. Choose "OpenAI API" option when running `cluster.py`
-
-## Requirements
-
-- Python 3.8+
-- Virtual environment recommended
-- Twitter browser cookies for scraping
-- OpenAI API key (optional, for better higher dim embeddings)
-
-## Example Output
-
-**Clustering:**
-- Groups tweets by topic/theme
-- Shows cluster representatives
-- Visualizes tweet relationships over time
-
-**Search:**
-```
-Enter search query: artificial intelligence
-Found 5 results:
-
-1. @username (2024-01-15)
-   The future of AI will be determined by how we align it with human values
-
-2. @username (2024-01-12)
-   Machine learning breakthroughs happening faster than expected
-```
 
 ## Troubleshooting
 
