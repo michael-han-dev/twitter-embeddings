@@ -1,6 +1,6 @@
 # Twitter Embeddings Analysis
 
-Analyze and visualize your Twitter activity using semantic embeddings, clustering, and similarity search. See what topics you've tweeted about and compare it to others.
+Analyze and visualize your Twitter activity using semantic embeddings, clustering, and similarity search. See what topics you've tweeted about and compare it to others. Powered by [@chromadb](https://trychroma.com/)
 
 ## Features
 
@@ -84,25 +84,12 @@ python search.py
 2. Add `OPENAI_API_KEY` to `.env`
 3. Choose "OpenAI API" option when running `cluster.py`
 
-## Project Structure
-```
-twitter-embeddings/
-├── extractTW.py      # Tweet scraping
-├── embedTweets.py    # Embedding functions
-├── cluster.py        # Main analysis and visualization
-├── search.py         # Semantic search interface
-├── animate.py        # Animation utilities
-├── tweets.json       # Scraped tweet data
-├── chroma.db/        # Vector database
-└── .env              # API credentials
-```
-
 ## Requirements
 
 - Python 3.8+
 - Virtual environment recommended
 - Twitter browser cookies for scraping
-- OpenAI API key (optional, for better embeddings)
+- OpenAI API key (optional, for better higher dim embeddings)
 
 ## Example Output
 
