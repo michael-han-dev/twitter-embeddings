@@ -9,3 +9,6 @@ chroma.dbaccounts.db
 accounts.dbaccounts.db
 __pycache__/
 chroma.db/
+chroma.db
+__pycache__/
+*.py[cod]

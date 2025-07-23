@@ -1,6 +1,10 @@
 import chromadb
 import warnings
+import os
+from dotenv import load_dotenv
+from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction, OpenAIEmbeddingFunction
 
+load_dotenv()
 client = chromadb.PersistentClient(path="./chroma.db")
 
 def collection_to_query():
@@ -49,12 +53,29 @@ def format_results(results):
         print(f"   {doc}")
         print("-----------------")
 
+def get_embedding_function(collection_name):
+    if "openai" in collection_name.lower():
+        openai_key = os.getenv("OPENAI_API_KEY")
+        if not openai_key:
+            raise ValueError("OPENAI_API_KEY not found in env")
+        return OpenAIEmbeddingFunction(
+            api_key=openai_key,
+            model_name="text-embedding-3-small"
+        )
+    else:
+        return SentenceTransformerEmbeddingFunction(
+            model_name="all-mpnet-base-v2"
+        )
+
 def main():
     collection_name = collection_to_query()
     if not collection_name:
         return
     
-    collection = client.get_collection(collection_name)
+    # Get the correct embedding function for this collection
+    embedding_fn = get_embedding_function(collection_name)
+    collection = client.get_collection(collection_name, embedding_function=embedding_fn)
+    
     num_results = get_num_results()
     user_filter = get_user_filter()
     
