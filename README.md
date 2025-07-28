@@ -10,6 +10,9 @@ Analyze and visualize your Twitter activity using semantic embeddings, clusterin
 - **Interactive Visualization**: 2D/3D plots with animation option
 - **Semantic Search**: Find tweets by meaning
 
+## Demo Link
+[Twitter](https://x.com/michaelyhan_/status/1948109960858210448)
+
 ## Quick Start
 
 ### 1. Clone and Setup
